@@ -1,0 +1,249 @@
+'Function: TARIFF IMPACTS ON PORTFOLIO MANAGEMENT
+Author: Hang BUI
+Version and Date: 1.0 20250524 Initial codes
+#1.Top 50
+```{r}
+# Install and load necessary packages
+if (!require("quantmod")) install.packages("quantmod")
+if (!require("writexl")) install.packages("writexl")
+if (!require("dplyr")) install.packages("dplyr")
+if (!require("reshape2")) install.packages("reshape2")
+if (!require("ggplot2")) install.packages("ggplot2")
+if (!require("openxlsx")) install.packages("openxlsx")
+
+library(quantmod)
+library(writexl)
+library(dplyr)
+library(reshape2)
+library(ggplot2)
+library(openxlsx)
+
+# Danh sách 50 cổ phiếu hàng đầu (sửa BRK.B thành BRK-B)
+top50_tickers <- c("AAPL", "MSFT", "AMZN", "GOOGL", "GOOG", "META", "NVDA", "TSLA",
+                   "BRK-B", "JNJ", "UNH", "XOM", "JPM", "V", "PG", "HD", "MA", "CVX",
+                   "ABBV", "LLY", "MRK", "PEP", "KO", "AVGO", "COST", "TMO", "WMT",
+                   "ACN", "CSCO", "ABT", "MCD", "NFLX", "TXN", "LIN", "AMD", "AMGN",
+                   "CRM", "ADBE", "PFE", "INTC", "CMCSA", "ORCL", "HON", "QCOM", "DHR",
+                   "NKE", "UPS", "MS", "PM", "NEE")
+
+# Gộp tất cả thành một nhóm (vì bạn chưa phân chia theo sector cụ thể)
+sectors <- list("Top50_Stocks" = top50_tickers)
+
+# Thời gian tải dữ liệu
+start_date <- "2024-01-01"
+end_date <- Sys.Date()
+
+# Định nghĩa các mốc sự kiện
+election_date <- as.Date("2024-11-05")
+tariff_announce <- as.Date("2025-04-02")
+tariff_defer <- as.Date("2025-06-01")
+
+# Tạo workbook Excel
+wb <- createWorkbook()
+
+# Hàm lấy và xử lý dữ liệu từng nhóm sector
+fetch_sector_data <- function(tickers, sector_name) {
+  stock_list <- list()
+  
+  for (ticker in tickers) {
+    cat("Fetching:", ticker, "\n")
+    try({
+      data <- getSymbols(ticker, src = "yahoo", from = start_date, to = end_date, auto.assign = FALSE)
+      adj_close <- Ad(data)
+      colnames(adj_close) <- ticker
+      stock_list[[ticker]] <- adj_close
+    }, silent = TRUE)
+  }
+
+  # Gộp dữ liệu thành 1 dataframe
+  merged_data <- do.call(merge, stock_list)
+  merged_df <- data.frame(Date = index(merged_data), coredata(merged_data))
+
+  # Ghi ra Excel
+  addWorksheet(wb, sector_name)
+  writeData(wb, sheet = sector_name, merged_df)
+
+  # Biểu đồ
+  melted_df <- melt(merged_df, id.vars = "Date", variable.name = "Company", value.name = "AdjustedClose")
+  
+  p <- ggplot(melted_df, aes(x = Date, y = AdjustedClose, color = Company)) +
+    geom_line(alpha = 0.8) +
+    labs(title = paste("Stock Price Trends -", sector_name),
+         x = "Date", y = "Adjusted Closing Price") +
+    geom_vline(xintercept = as.numeric(election_date), linetype = "dashed", color = "blue") +
+    geom_vline(xintercept = as.numeric(tariff_announce), linetype = "dotted", color = "red") +
+    geom_vline(xintercept = as.numeric(tariff_defer), linetype = "dotdash", color = "darkgreen") +
+    theme_minimal()
+
+  print(p)  # Đảm bảo hiện biểu đồ nếu dùng R Markdown hoặc console
+}
+
+# Lặp qua từng sector
+for (sector in names(sectors)) {
+  fetch_sector_data(sectors[[sector]], sector)
+}
+
+# Lưu file Excel
+saveWorkbook(wb, file = "Top50_Tariff_Election_Impact.xlsx", overwrite = TRUE)
+
+```
+#2.Top 50 chia theo ngành
+```{r}
+# Gán cổ phiếu vào từng ngành
+sectors <- list(
+  "Information_Technology" = c("AAPL", "MSFT", "GOOGL", "GOOG", "META", "NVDA", "AVGO", 
+                                "ACN", "CSCO", "AMD", "CRM", "ADBE", "ORCL", "INTC", "TXN", "QCOM"),
+  "Health_Care" = c("JNJ", "UNH", "ABBV", "LLY", "MRK", "TMO", "ABT", "AMGN", "PFE", "DHR"),
+  "Consumer_Discretionary" = c("AMZN", "TSLA", "HD", "MCD", "NFLX", "NKE"),
+  "Consumer_Staples" = c("PG", "PEP", "KO", "COST", "WMT", "PM"),
+  "Energy" = c("XOM", "CVX"),
+  "Financials" = c("JPM", "V", "MA", "MS", "BRK-B"),
+  "Industrials" = c("HON", "UPS"),
+  "Communication_Services" = c("CMCSA"),
+  "Utilities" = c("NEE"),
+  "Materials" = c("LIN")
+)
+
+# Thời gian lấy dữ liệu
+start_date <- "2024-01-01"
+end_date <- Sys.Date()
+
+# Các mốc sự kiện
+election_date <- as.Date("2024-11-05")
+tariff_announce <- as.Date("2025-04-02")
+tariff_defer <- as.Date("2025-06-01")
+
+# Tạo workbook để ghi dữ liệu
+wb <- createWorkbook()
+
+# Hàm lấy và xử lý dữ liệu từng ngành
+fetch_sector_data <- function(tickers, sector_name) {
+  stock_list <- list()
+  
+  for (ticker in tickers) {s
+    cat("Fetching:", ticker, "\n")
+    try({
+      data <- getSymbols(ticker, src = "yahoo", from = start_date, to = end_date, auto.assign = FALSE)
+      adj_close <- Ad(data)
+      colnames(adj_close) <- ticker
+      stock_list[[ticker]] <- adj_close
+    }, silent = TRUE)
+  }
+  
+  if (length(stock_list) == 0) {
+    cat("No data fetched for sector:", sector_name, "\n")
+    return(NULL)
+  }
+  
+  # Gộp dữ liệu
+  merged_data <- do.call(merge, stock_list)
+  merged_df <- data.frame(Date = index(merged_data), coredata(merged_data))
+  
+  # Ghi vào sheet Excel
+  addWorksheet(wb, sector_name)
+  writeData(wb, sheet = sector_name, merged_df)
+  
+  # Biểu đồ
+  melted_df <- melt(merged_df, id.vars = "Date", variable.name = "Company", value.name = "AdjustedClose")
+  
+  p <- ggplot(melted_df, aes(x = Date, y = AdjustedClose, color = Company)) +
+    geom_line(alpha = 0.8) +
+    labs(title = paste("Stock Price Trends -", sector_name),
+         x = "Date", y = "Adjusted Closing Price") +
+    geom_vline(xintercept = as.numeric(election_date), linetype = "dashed", color = "blue") +
+    geom_vline(xintercept = as.numeric(tariff_announce), linetype = "dotted", color = "red") +
+    geom_vline(xintercept = as.numeric(tariff_defer), linetype = "dotdash", color = "darkgreen") +
+    theme_minimal()
+  
+  print(p)
+}
+
+# Cần đảm bảo đã cài đặt các gói sau nếu chưa có:
+# install.packages(c("quantmod", "openxlsx", "reshape2", "ggplot2"))
+
+library(quantmod)
+library(openxlsx)
+library(reshape2)
+library(ggplot2)
+
+# Gán cổ phiếu vào từng ngành
+sectors <- list(
+  "Information_Technology" = c("AAPL", "MSFT", "GOOGL", "GOOG", "META", "NVDA", "AVGO", 
+                                "ACN", "CSCO", "AMD", "CRM", "ADBE", "ORCL", "INTC", "TXN", "QCOM"),
+  "Health_Care" = c("JNJ", "UNH", "ABBV", "LLY", "MRK", "TMO", "ABT", "AMGN", "PFE", "DHR"),
+  "Consumer_Discretionary" = c("AMZN", "TSLA", "HD", "MCD", "NFLX", "NKE"),
+  "Consumer_Staples" = c("PG", "PEP", "KO", "COST", "WMT", "PM"),
+  "Energy" = c("XOM", "CVX"),
+  "Financials" = c("JPM", "V", "MA", "MS", "BRK-B"),
+  "Industrials" = c("HON", "UPS"),
+  "Communication_Services" = c("CMCSA"),
+  "Utilities" = c("NEE"),
+  "Materials" = c("LIN")
+)
+
+# Thời gian lấy dữ liệu
+start_date <- "2024-01-01"
+end_date <- Sys.Date()
+
+# Các mốc sự kiện
+election_date <- as.Date("2024-11-05")
+tariff_announce <- as.Date("2025-04-02")
+tariff_defer <- as.Date("2025-06-01")
+
+# Tạo workbook để ghi dữ liệu
+wb <- createWorkbook()
+
+# Hàm lấy và xử lý dữ liệu từng ngành
+fetch_sector_data <- function(tickers, sector_name) {
+  stock_list <- list()
+  
+  for (ticker in tickers) {
+    cat("Fetching:", ticker, "\n")
+    tryCatch({
+      data <- getSymbols(ticker, src = "yahoo", from = start_date, to = end_date, auto.assign = FALSE)
+      adj_close <- Ad(data)
+      colnames(adj_close) <- ticker
+      stock_list[[ticker]] <- adj_close
+    }, error = function(e) {
+      cat("Error fetching:", ticker, "\n")
+    })
+  }
+  
+  if (length(stock_list) == 0) {
+    cat("No data fetched for sector:", sector_name, "\n")
+    return(NULL)
+  }
+  
+  # Gộp dữ liệu
+  merged_data <- do.call(merge, stock_list)
+  merged_df <- data.frame(Date = index(merged_data), coredata(merged_data))
+  
+  # Ghi vào sheet Excel
+  addWorksheet(wb, sector_name)
+  writeData(wb, sheet = sector_name, merged_df)
+  
+  # Vẽ biểu đồ
+  melted_df <- melt(merged_df, id.vars = "Date", variable.name = "Company", value.name = "AdjustedClose")
+  
+  p <- ggplot(melted_df, aes(x = Date, y = AdjustedClose, color = Company)) +
+    geom_line(alpha = 0.8) +
+    labs(title = paste("Stock Price Trends -", sector_name),
+         x = "Date", y = "Adjusted Closing Price") +
+    geom_vline(xintercept = as.numeric(election_date), linetype = "dashed", color = "blue") +
+    geom_vline(xintercept = as.numeric(tariff_announce), linetype = "dotted", color = "red") +
+    geom_vline(xintercept = as.numeric(tariff_defer), linetype = "dotdash", color = "darkgreen") +
+    theme_minimal()
+  
+  print(p)
+}
+
+# Thực thi từng ngành
+for (sector in names(sectors)) {
+  fetch_sector_data(sectors[[sector]], sector)
+}
+
+# Lưu workbook
+saveWorkbook(wb, file = "Sectorwise_Tariff_Election_Impact.xlsx", overwrite = TRUE)
+
+```
+
